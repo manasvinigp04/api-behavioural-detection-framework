@@ -4,7 +4,7 @@ Markdown Report Generator
 Generates comprehensive Markdown reports for drift analysis.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -95,7 +95,7 @@ class MarkdownReportGenerator:
         output_directory.mkdir(parents=True, exist_ok=True)
 
         # Generate filename with timestamp
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         filename = f"drift_report_{timestamp}.md"
         filepath = output_directory / filename
 
@@ -190,7 +190,7 @@ class MarkdownReportGenerator:
             "top_high_issues": top_high,
             # Config
             "config": self.config,
-            "report_timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "report_timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
             "generator_version": "0.1.0",
         }
 

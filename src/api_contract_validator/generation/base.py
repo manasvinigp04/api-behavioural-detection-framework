@@ -7,7 +7,7 @@ Base classes and models for test case generation.
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from api_contract_validator.input.normalizer.models import Endpoint, HTTPMethod
 
@@ -39,8 +39,7 @@ class TestCase(BaseModel):
     should_pass: bool = True  # True for valid tests, False for invalid
     priority: float = 1.0  # Higher = more important
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
     @property
     def full_path(self) -> str:
@@ -58,8 +57,7 @@ class TestSuite(BaseModel):
     description: Optional[str] = None
     test_cases: List[TestCase] = Field(default_factory=list)
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
     def add_test(self, test_case: TestCase) -> None:
         """Add a test case to the suite."""

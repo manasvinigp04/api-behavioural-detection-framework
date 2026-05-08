@@ -7,7 +7,7 @@ Generates valid test cases (happy paths) from API contracts.
 import random
 import string
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from api_contract_validator.config.logging import get_logger
@@ -191,9 +191,10 @@ class ValidTestGenerator(BaseTestGenerator):
             if format_type == "email":
                 return f"user{random.randint(1, 1000)}@example.com"
             elif format_type == "date-time":
-                return datetime.utcnow().isoformat() + "Z"
+                # Use timezone-aware UTC timestamp and normalize to Z
+                return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             elif format_type == "date":
-                return datetime.utcnow().strftime("%Y-%m-%d")
+                return datetime.now(timezone.utc).strftime("%Y-%m-%d")
             elif format_type == "uuid":
                 return str(uuid.uuid4())
             elif format_type == "uri":

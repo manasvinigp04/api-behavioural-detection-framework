@@ -35,16 +35,27 @@ class RiskBasedPrioritizer:
         """
         logger.info(f"Applying risk-based prioritization to {len(test_suite.test_cases)} tests")
 
+        # Build new list of test cases to avoid mutating original objects
+        updated_tests: List[TestCase] = []
+
         for test_case in test_suite.test_cases:
             priority = self._calculate_priority(test_case)
-            test_case.priority = priority
+            # Create a shallow copy of the test case with updated priority
+            tc_copy = TestCase(**test_case.model_dump())
+            tc_copy.priority = priority
+            updated_tests.append(tc_copy)
 
         # Sort by priority (highest first)
-        test_suite.test_cases.sort(key=lambda tc: tc.priority, reverse=True)
+        updated_tests.sort(key=lambda tc: tc.priority, reverse=True)
 
-        logger.info(f"Prioritization complete. Top priority: {test_suite.test_cases[0].priority:.2f}")
+        # Replace test cases in a new TestSuite instance to avoid side-effects
+        new_suite = TestSuite(name=test_suite.name, description=test_suite.description)
+        for tc in updated_tests:
+            new_suite.add_test(tc)
 
-        return test_suite
+        logger.info(f"Prioritization complete. Top priority: {new_suite.test_cases[0].priority:.2f}")
+
+        return new_suite
 
     def _calculate_priority(self, test_case: TestCase) -> float:
         """Calculate priority score for a test case."""
@@ -109,7 +120,9 @@ class RiskBasedPrioritizer:
         Returns:
             List of selected test cases
         """
-        return test_suite.test_cases[:max_tests]
+        # Ensure tests are ordered by priority before selecting top N
+        sorted_tests = sorted(test_suite.test_cases, key=lambda tc: tc.priority, reverse=True)
+        return sorted_tests[:max_tests]
 
     def get_priority_distribution(self, test_suite: TestSuite) -> Dict[str, int]:
         """Get distribution of tests by priority level."""

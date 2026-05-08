@@ -8,7 +8,7 @@ that can be derived from both OpenAPI specs and PRD documents.
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, ConfigDict
 
 
 class HTTPMethod(str, Enum):
@@ -62,8 +62,7 @@ class FieldConstraint(BaseModel):
     format: Optional[str] = None  # e.g., "email", "date-time", "uuid"
     default: Optional[Any] = None
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class FieldDefinition(BaseModel):
@@ -79,8 +78,7 @@ class FieldDefinition(BaseModel):
     properties: Optional[Dict[str, "FieldDefinition"]] = None  # For object types
     confidence: float = 1.0  # Confidence score (1.0 = certain, <1.0 = inferred from PRD)
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class Parameter(BaseModel):
@@ -95,8 +93,7 @@ class Parameter(BaseModel):
     constraints: FieldConstraint = Field(default_factory=FieldConstraint)
     confidence: float = 1.0
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class RequestBody(BaseModel):
@@ -110,8 +107,7 @@ class RequestBody(BaseModel):
     description: Optional[str] = None
     confidence: float = 1.0
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class ResponseBody(BaseModel):
@@ -125,8 +121,7 @@ class ResponseBody(BaseModel):
     description: Optional[str] = None
     confidence: float = 1.0
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class Endpoint(BaseModel):
@@ -147,8 +142,7 @@ class Endpoint(BaseModel):
     deprecated: bool = False
     confidence: float = 1.0  # For PRD-derived endpoints
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
     @property
     def endpoint_id(self) -> str:
@@ -168,8 +162,7 @@ class SecurityScheme(BaseModel):
     in_location: Optional[str] = None  # For apiKey: "query", "header", "cookie"
     description: Optional[str] = None
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class APIMetadata(BaseModel):
@@ -185,9 +178,7 @@ class APIMetadata(BaseModel):
     license: Optional[Dict[str, str]] = None
     terms_of_service: Optional[str] = None
 
-    class Config:
-        frozen = False
-
+    model_config = ConfigDict(frozen=False)
 
 class UnifiedAPISpec(BaseModel):
     """
@@ -209,9 +200,7 @@ class UnifiedAPISpec(BaseModel):
     confidence: float = 1.0  # Overall confidence (lower for PRD-derived specs)
     raw_spec: Dict[str, Any] = Field(default_factory=dict)  # Original OpenAPI spec for $ref resolution
 
-    class Config:
-        frozen = False
-
+    model_config = ConfigDict(frozen=False)
     def get_endpoint(self, path: str, method: HTTPMethod) -> Optional[Endpoint]:
         """Get a specific endpoint by path and method."""
         for endpoint in self.endpoints:

@@ -5,7 +5,7 @@ Generates structured JSON reports for CI/CD integration.
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -56,7 +56,7 @@ class JSONReportGenerator:
         # Build report structure
         report = {
             "metadata": {
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
                 "generator_version": "0.1.0",
                 "format": "json",
                 "spec_source": drift_report.spec_source,
@@ -148,7 +148,7 @@ class JSONReportGenerator:
         output_directory.mkdir(parents=True, exist_ok=True)
 
         # Generate filename with timestamp
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         filename = f"drift_report_{timestamp}.json"
         filepath = output_directory / filename
 

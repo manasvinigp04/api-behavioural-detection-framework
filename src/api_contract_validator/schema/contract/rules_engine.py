@@ -102,6 +102,70 @@ class RulesEngine:
             else:
                 logger.warning(f"allOf found but no spec_dict provided for {endpoint_id}")
 
+        # If no composition rules matched or composition produced no violations, perform basic schema validation
+        if not violations:
+            # Resolve $ref if present
+            if "$ref" in schema and spec_dict:
+                # Resolve reference
+                ref = schema["$ref"]
+                if ref.startswith("#/"):
+                    parts = ref[2:].split("/")
+                    current = spec_dict
+                    for part in parts:
+                        if isinstance(current, dict):
+                            current = current.get(part)
+                            if current is None:
+                                current = None
+                                break
+                        else:
+                            current = None
+                            break
+                    if isinstance(current, dict):
+                        schema = current
+
+            # Basic object validation: required fields and simple type checks
+            if isinstance(schema, dict):
+                # If schema defines an object with properties
+                if schema.get("type") == "object" or "properties" in schema:
+                    props = schema.get("properties", {})
+                    required_fields = schema.get("required", [])
+
+                    # Check required fields
+                    for field in required_fields:
+                        if not isinstance(data, dict) or field not in data:
+                            violations.append(
+                                Violation(
+                                    violation_type=ViolationType.MISSING_FIELD,
+                                    endpoint_id=endpoint_id,
+                                    location=location,
+                                    field_path=field,
+                                    expected="present",
+                                    actual="missing",
+                                    message=f"Required field '{field}' is missing",
+                                    severity="error",
+                                )
+                            )
+
+                    # Check simple property types where specified
+                    for prop_name, prop_schema in props.items():
+                        if prop_name in data:
+                            # If property schema specifies type, validate
+                            expected_type = prop_schema.get("type")
+                            if expected_type:
+                                if not self._check_type_match(data[prop_name], expected_type):
+                                    violations.append(
+                                        Violation(
+                                            violation_type=ViolationType.TYPE_MISMATCH,
+                                            endpoint_id=endpoint_id,
+                                            location=location,
+                                            field_path=prop_name,
+                                            expected=expected_type,
+                                            actual=self._get_type_string(data[prop_name]),
+                                            message=f"Type mismatch for field '{prop_name}': expected {expected_type}",
+                                            severity="error",
+                                        )
+                                    )
+
         return violations
 
     def validate_against_rules(

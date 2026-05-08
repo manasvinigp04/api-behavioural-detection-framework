@@ -7,7 +7,7 @@ Data models for AI-assisted drift analysis results.
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class AnalysisConfidence(str, Enum):
@@ -30,8 +30,7 @@ class RootCauseAnalysis(BaseModel):
     confidence: AnalysisConfidence = AnalysisConfidence.MEDIUM
     evidence_references: List[str] = Field(default_factory=list)  # References to test IDs
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class RemediationSuggestion(BaseModel):
@@ -48,8 +47,7 @@ class RemediationSuggestion(BaseModel):
     estimated_effort: str = "unknown"  # "low", "medium", "high"
     priority: str = "medium"  # "critical", "high", "medium", "low"
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class IssueCorrelation(BaseModel):
@@ -63,8 +61,7 @@ class IssueCorrelation(BaseModel):
     description: str
     impact_summary: str  # How these issues relate and compound
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class AnalysisResult(BaseModel):
@@ -85,8 +82,7 @@ class AnalysisResult(BaseModel):
     model_used: str = "unknown"
     analysis_timestamp: Optional[str] = None
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
     def has_insights(self) -> bool:
         """Check if analysis contains any insights."""

@@ -4,10 +4,10 @@ Reporting Models
 Data models for structured report generation.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ReportSummary(BaseModel):
@@ -29,12 +29,11 @@ class ReportSummary(BaseModel):
     validation_drift_count: int = 0
     behavioral_drift_count: int = 0
 
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     api_url: str = ""
     spec_source: str = ""
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class EndpointDriftSummary(BaseModel):
@@ -48,8 +47,7 @@ class EndpointDriftSummary(BaseModel):
     highest_severity: str = "low"
     issues: List[Dict[str, Any]] = Field(default_factory=list)
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class EndpointReport(BaseModel):
@@ -62,8 +60,7 @@ class EndpointReport(BaseModel):
     root_cause: Optional[str] = None
     remediations: List[str] = Field(default_factory=list)
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class DriftBreakdown(BaseModel):
@@ -73,17 +70,15 @@ class DriftBreakdown(BaseModel):
     validation_drift: List[Dict[str, Any]] = Field(default_factory=list)
     behavioral_drift: List[Dict[str, Any]] = Field(default_factory=list)
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class ReportMetadata(BaseModel):
     """Metadata about the report itself."""
 
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     generator_version: str = "0.1.0"
     report_format: str = "unknown"
     config_summary: Optional[Dict[str, Any]] = None
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)

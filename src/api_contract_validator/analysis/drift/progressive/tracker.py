@@ -1,6 +1,6 @@
 """Progressive drift tracking with time-series."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict
 import json
 
@@ -12,7 +12,7 @@ class ProgressiveDriftTracker:
 
     def record_snapshot(self, snapshot: Dict):
         """Record drift snapshot."""
-        snapshot['timestamp'] = datetime.utcnow().isoformat()
+        snapshot['timestamp'] = datetime.now(timezone.utc).isoformat()
         with open(self.storage_path, 'a') as f:
             f.write(json.dumps(snapshot) + '\n')
 

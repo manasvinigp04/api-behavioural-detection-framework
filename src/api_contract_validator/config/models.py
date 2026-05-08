@@ -7,7 +7,7 @@ Pydantic models for configuration management.
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator, ConfigDict
 
 
 class ExecutionConfig(BaseModel):
@@ -125,9 +125,7 @@ class Config(BaseModel):
     # Environment-specific overrides
     environment: str = "development"  # "development", "ci", "production"
 
-    class Config:
-        frozen = False
-        validate_assignment = True
+    model_config = ConfigDict(frozen=False, validate_assignment=True)
 
 
 class ValidationTarget(BaseModel):
