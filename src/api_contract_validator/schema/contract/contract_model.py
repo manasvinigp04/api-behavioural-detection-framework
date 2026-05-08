@@ -7,7 +7,7 @@ Executable contract models for API validation.
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from api_contract_validator.input.normalizer.models import (
     Endpoint,
@@ -38,8 +38,7 @@ class ConstraintRule(BaseModel):
     expected_value: Any
     description: str
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class ContractRule(BaseModel):
@@ -55,8 +54,7 @@ class ContractRule(BaseModel):
     required: bool = False
     nullable: bool = False
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class EndpointContract(BaseModel):
@@ -69,8 +67,7 @@ class EndpointContract(BaseModel):
     response_rules: Dict[int, List[ContractRule]] = Field(default_factory=dict)
     parameter_rules: List[ContractRule] = Field(default_factory=list)
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
     @property
     def endpoint_id(self) -> str:
@@ -93,8 +90,7 @@ class APIContract(BaseModel):
     spec: UnifiedAPISpec
     endpoint_contracts: Dict[str, EndpointContract] = Field(default_factory=dict)
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
     def get_contract(self, endpoint_id: str) -> Optional[EndpointContract]:
         """Get contract for a specific endpoint."""
@@ -125,5 +121,4 @@ class Violation(BaseModel):
     message: str
     severity: str = "error"  # "error", "warning", "info"
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)

@@ -86,7 +86,25 @@ class DiscriminatorValidator:
         # Resolve sub-schema from mapping
         sub_schema_ref = mapping.get(discriminator_value)
         if not sub_schema_ref:
-            # Try to find schema by implicit naming (e.g., type: "HDL" -> HDLDataDestination)
+            # If an explicit mapping exists but doesn't include this value,
+            # it's an unknown discriminator value and should be reported.
+            if mapping:
+                violations.append(
+                    Violation(
+                        endpoint_id=endpoint_id,
+                        location=location,
+                        field_path=property_name,
+                        violation_type=ViolationType.INVALID_ENUM,
+                        expected=f"one of {list(mapping.keys())}",
+                        actual=discriminator_value,
+                        message=f"Unknown discriminator value: {discriminator_value}",
+                        severity="error",
+                    )
+                )
+                return violations
+
+            # No explicit mapping provided; try to find a matching subschema implicitly
+            # (e.g., via oneOf/anyOf in the parent schema)
             sub_schema_ref = self._find_implicit_schema(discriminator_value, schema)
 
         if not sub_schema_ref:

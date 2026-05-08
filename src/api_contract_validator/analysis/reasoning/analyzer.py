@@ -7,7 +7,7 @@ Enhanced with PageRank-based context prioritization for cost optimization.
 
 import json
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from anthropic import Anthropic
@@ -47,6 +47,7 @@ class AIAnalyzer:
         self.context_ranker = APIContextRanker()
         self.api_call_count = 0
         self.tokens_saved = 0
+        self.client = None
 
         if not config.enabled:
             logger.info("AI analysis disabled")
@@ -86,7 +87,7 @@ class AIAnalyzer:
             return AnalysisResult(
                 executive_summary="No drift issues detected. API conforms to contract specifications.",
                 model_used=self.config.model,
-                analysis_timestamp=datetime.utcnow().isoformat(),
+                analysis_timestamp=datetime.now(timezone.utc).isoformat(),
             )
 
         logger.info("Starting AI-assisted drift analysis")
@@ -94,7 +95,7 @@ class AIAnalyzer:
         try:
             analysis_result = AnalysisResult(
                 model_used=self.config.model,
-                analysis_timestamp=datetime.utcnow().isoformat(),
+                analysis_timestamp=datetime.now(timezone.utc).isoformat(),
             )
 
             # Generate executive summary
@@ -124,7 +125,7 @@ class AIAnalyzer:
             return AnalysisResult(
                 executive_summary=f"AI analysis partially failed: {str(e)}",
                 model_used=self.config.model,
-                analysis_timestamp=datetime.utcnow().isoformat(),
+                analysis_timestamp=datetime.now(timezone.utc).isoformat(),
             )
 
     def _generate_executive_summary(self, drift_report: DriftReport) -> str:

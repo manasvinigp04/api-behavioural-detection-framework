@@ -154,6 +154,18 @@ class TestExecutor:
                     )
 
             except Exception as e:
+                # Some test handlers (pytest_httpserver) raise plain Exceptions with
+                # message "Timeout" to simulate a transient timeout on the server side.
+                # Treat such errors as retryable timeouts so retry logic behaves
+                # consistently regardless of exception type.
+                msg = str(e) or ""
+                if "timeout" in msg.lower() and attempt < self.config.retry_attempts:
+                    logger.warning(
+                        f"Server-side timeout on attempt {attempt + 1} for {test_case.test_id}, retrying..."
+                    )
+                    await asyncio.sleep(self.config.retry_delay_seconds)
+                    continue
+
                 if attempt < self.config.retry_attempts:
                     logger.warning(
                         f"Error on attempt {attempt + 1} for {test_case.test_id}: {e}, retrying..."

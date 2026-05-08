@@ -5,7 +5,7 @@ Generates CLAUDE.md and .claude/skills/ files for user repositories
 to enable efficient drift remediation using Claude Code CLI.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -138,7 +138,7 @@ class ClaudeIntegrationGenerator:
         Returns:
             Path to generated CLAUDE.md
         """
-        timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
         # Try to get relative path for cleaner display
         repo_root = acv_dir.parent
@@ -387,13 +387,13 @@ For complete analysis, see:
         claude_md_path = acv_dir / "CLAUDE.md"  # Write to .acv/ not repo root
         if claude_md_path.exists():
             logger.info("CLAUDE.md exists in .acv/, appending new section")
-            existing_content = claude_md_path.read_text()
+            existing_content = claude_md_path.read_text(encoding="utf-8")
             separator = f"\n\n---\n\n# ACV Update - {timestamp}\n\n"
             content = existing_content + separator + content
         else:
             logger.info("Creating new CLAUDE.md in .acv/")
 
-        claude_md_path.write_text(content)
+        claude_md_path.write_text(content, encoding="utf-8")
         return claude_md_path
 
     def _generate_fix_validation_skill(
@@ -684,7 +684,7 @@ Found {len(drift_report.validation_drift)} validation drift issues across {len(i
 """
 
         skill_path = skills_dir / "fix-validation-drift.md"
-        skill_path.write_text(content)
+        skill_path.write_text(content, encoding="utf-8")
         logger.info(f"Generated fix-validation-drift skill at {skill_path}")
         return skill_path
 
@@ -802,7 +802,7 @@ Follow similar pattern to fix-validation-drift:
 """
 
         skill_path = skills_dir / "fix-contract-drift.md"
-        skill_path.write_text(content)
+        skill_path.write_text(content, encoding="utf-8")
         logger.info(f"Generated fix-contract-drift skill at {skill_path}")
         return skill_path
 
@@ -997,6 +997,6 @@ Apply this fix? [y/n/view/skip/quit]: y
 """
 
         skill_path = skills_dir / "apply-remediations.md"
-        skill_path.write_text(content)
+        skill_path.write_text(content, encoding="utf-8")
         logger.info(f"Generated apply-remediations skill at {skill_path}")
         return skill_path

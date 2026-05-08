@@ -22,7 +22,7 @@ console = Console()
 @click.option(
     "--config",
     "-c",
-    type=click.Path(exists=True, path_type=Path),
+    type=click.Path(exists=False, path_type=Path),
     help="Path to configuration file (YAML)",
 )
 @click.option("--verbose", "-v", count=True, help="Increase verbosity (can be repeated)")
@@ -58,6 +58,52 @@ def cli(ctx: click.Context, config: Optional[Path], verbose: int, quiet: bool) -
                 border_style="cyan",
             )
         )
+
+
+@cli.command()
+@click.option("--spec", "spec_path", type=click.Path(path_type=Path, exists=False), help="Path to OpenAPI spec")
+@click.option("--api-url", "api_url", help="Base URL of the API")
+@click.option("--output", "output_dir", type=click.Path(path_type=Path, exists=False), help="Default reports output directory")
+@click.option("--yes", "-y", is_flag=True, help="Overwrite existing acv_config.yaml without prompt")
+@click.pass_context
+def init(ctx: click.Context, spec_path: Optional[Path], api_url: Optional[str], output_dir: Optional[Path], yes: bool) -> None:
+    """
+    Initialize a project `acv_config.yaml` with sensible defaults.
+
+    Examples:
+        acv init
+        acv init --spec openapi/sample_users_api.yaml --api-url http://localhost:8000
+    """
+    import yaml
+
+    # Allow writing to a user-provided config path via the group-level --config option
+    provided_cfg = ctx.obj.get("config_path") if ctx.obj else None
+    config_file = Path(provided_cfg) if provided_cfg else Path("acv_config.yaml")
+    if config_file.exists() and not yes:
+        console.print(f"[yellow]acv_config.yaml already exists at {config_file}. Use --yes to overwrite.[/yellow]")
+        return
+
+    cfg = {
+        "project": {"spec": {"path": str(spec_path) if spec_path else "openapi/sample_users_api.yaml"},
+                      "output": {"reports": str(output_dir) if output_dir else "examples/outputs/reports"}},
+        "api": {"base_url": api_url if api_url else "http://localhost:8000"},
+        "execution": {"parallel_workers": 4, "timeout_seconds": 10},
+        "test_generation": {"max_tests_per_endpoint": 50},
+        "drift_detection": {"detect_contract_drift": True, "detect_validation_drift": True, "detect_behavioral_drift": True},
+        "ai_analysis": {"enabled": True, "model": "claude"},
+        "reporting": {"output_directory": str(output_dir) if output_dir else "examples/outputs/reports"},
+        "logging": {"level": "INFO"},
+    }
+
+    # Ensure parent directories exist
+    try:
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+
+    with open(config_file, "w") as f:
+        yaml.safe_dump(cfg, f)
+    console.print(f"[green]Created {config_file} with defaults. Edit it to suit your project.[/green]")
 
 
 @cli.command()
@@ -573,274 +619,7 @@ def parse(ctx: click.Context, spec_path: Path, format: str) -> None:
         sys.exit(1)
 
 
-@cli.command()
-@click.option(
-    "--spec-path",
-    "-s",
-    type=click.Path(path_type=Path),
-    help="Path to OpenAPI specification (relative to project root)",
-)
-@click.option(
-    "--api-url",
-    "-u",
-    help="Base URL of your API",
-)
-@click.option(
-    "--force",
-    "-f",
-    is_flag=True,
-    help="Overwrite existing acv_config.yaml",
-)
-@click.pass_context
-def init(
-    ctx: click.Context,
-    spec_path: Optional[Path],
-    api_url: Optional[str],
-    force: bool,
-) -> None:
-    """
-    Initialize ACV in your project by creating acv_config.yaml
 
-    Creates a configuration file tailored to your project structure.
-    """
-    import yaml
-
-    config_path = Path("acv_config.yaml")
-
-    # Check if config already exists
-    if config_path.exists() and not force:
-        console.print("[yellow]⚠ acv_config.yaml already exists![/yellow]")
-        console.print("Use --force to overwrite, or edit the existing file.")
-        sys.exit(1)
-
-    console.print("[bold cyan]🚀 Initializing ACV in your project[/bold cyan]\n")
-
-    # Interactive prompts if not provided
-    if not spec_path:
-        spec_path_input = console.input(
-            "[cyan]Path to OpenAPI spec (file or directory):[/cyan] [dim](e.g., openapi/api.yaml or openapi/)[/dim] "
-        )
-        spec_path = Path(spec_path_input) if spec_path_input else Path("openapi")
-
-    if not api_url:
-        api_url = console.input("[cyan]API base URL:[/cyan] [dim](e.g., http://localhost:8000)[/dim] ")
-        api_url = api_url if api_url else "http://localhost:8000"
-
-    # Try to detect security requirements from spec
-    detected_headers = {}
-    security_info = []
-
-    console.print("\n[cyan]🔍 Analyzing OpenAPI spec for security requirements...[/cyan]")
-
-    try:
-        from api_contract_validator.input.openapi.parser import OpenAPIParser
-        parser = OpenAPIParser()
-
-        # Handle both file and directory paths
-        spec_file = spec_path
-        if spec_path.is_dir():
-            yaml_files = list(spec_path.glob("*.yaml")) + list(spec_path.glob("*.yml"))
-            if yaml_files:
-                spec_file = yaml_files[0]
-                console.print(f"   [dim]Found {len(yaml_files)} specs, analyzing {spec_file.name}[/dim]")
-
-        if spec_file.exists():
-            parsed_spec = parser.parse_file(spec_file)
-
-            # Detect security schemes
-            if parsed_spec.security_schemes:
-                console.print(f"   [green]✓ Found {len(parsed_spec.security_schemes)} security scheme(s)[/green]")
-                for scheme in parsed_spec.security_schemes:
-                    security_info.append(f"     • {scheme.name}: {scheme.type}")
-
-                    if scheme.type == "apiKey":
-                        detected_headers[scheme.name] = "YOUR_API_KEY_HERE"
-                    elif scheme.type in ["http", "bearer"]:
-                        detected_headers["Authorization"] = "Bearer YOUR_TOKEN_HERE"
-                    elif scheme.type == "oauth2":
-                        detected_headers["Authorization"] = "Bearer YOUR_OAUTH_TOKEN_HERE"
-
-                console.print("\n".join(security_info))
-            else:
-                console.print("   [dim]No security schemes defined in spec[/dim]")
-
-            # Check for custom headers in spec (x-headers or parameters)
-            for endpoint in parsed_spec.endpoints[:10]:  # Check first 10 endpoints
-                for param in endpoint.parameters:
-                    if param.location == "header" and param.name not in detected_headers:
-                        default_val = "YOUR_VALUE_HERE"
-                        if "tenant" in param.name.lower():
-                            default_val = "default-tenant-id"
-                        elif "resource" in param.name.lower():
-                            default_val = "default"
-                        detected_headers[param.name] = default_val
-
-            if detected_headers:
-                console.print(f"   [green]✓ Detected {len(detected_headers)} required header(s)[/green]")
-
-    except Exception as e:
-        console.print(f"   [dim]Could not analyze spec: {e}[/dim]")
-
-    # Ask if user wants to add custom headers
-    console.print("\n[cyan]🔑 HTTP Headers Configuration[/cyan]")
-
-    if detected_headers:
-        console.print("[dim]Detected headers from OpenAPI spec:[/dim]")
-        for header, value in detected_headers.items():
-            console.print(f"  • {header}: {value}")
-
-        use_detected = console.input("\n[cyan]Use detected headers?[/cyan] [dim](y/n, default: y)[/dim] ")
-        if use_detected.lower() not in ["n", "no"]:
-            headers = detected_headers
-        else:
-            headers = {}
-    else:
-        add_headers = console.input(
-            "[cyan]Does your API require custom headers?[/cyan] [dim](y/n, default: n)[/dim] "
-        )
-        headers = {}
-
-        if add_headers.lower() in ["y", "yes"]:
-            console.print("\n[dim]Enter headers (leave blank to finish):[/dim]")
-            while True:
-                header_name = console.input("  [cyan]Header name:[/cyan] ")
-                if not header_name:
-                    break
-                header_value = console.input(f"  [cyan]Default value for {header_name}:[/cyan] ")
-                headers[header_name] = header_value or "YOUR_VALUE_HERE"
-
-    # Create configuration
-    config = {
-        "project": {
-            "root": ".",
-            "spec": {
-                "path": str(spec_path),
-                "format": "openapi"
-            },
-            "endpoints": {
-                "directory": "src",
-                "patterns": ["**/*.py", "**/*.js", "**/*.ts"]
-            },
-            "tests": {
-                "directory": "tests",
-                "patterns": ["test_*.py", "*_test.py", "**/*.test.js"]
-            },
-            "output": {
-                "tests": "tests/generated",
-                "reports": "reports/acv"
-            }
-        },
-        "api": {
-            "base_url": api_url,
-            **({} if not headers else {"headers": headers}),  # Add headers if detected/configured
-            "environments": {
-                "local": "http://localhost:8000",
-                "dev": "https://dev-api.example.com",
-                "staging": "https://staging-api.example.com",
-                "prod": "https://api.example.com"
-            }
-        },
-        "execution": {
-            "parallel_workers": 10,
-            "timeout_seconds": 30,
-            "retry_attempts": 3
-        },
-        "test_generation": {
-            "generate_valid": True,
-            "generate_invalid": True,
-            "generate_boundary": True,
-            "max_tests_per_endpoint": 50,
-            "enable_prioritization": True
-        },
-        "drift_detection": {
-            "detect_contract_drift": True,
-            "detect_validation_drift": True,
-            "detect_behavioral_drift": True
-        },
-        "ai_analysis": {
-            "enabled": True,
-            "model": "claude-3-5-sonnet-20241022"
-            # Note: API key is read from ANTHROPIC_API_KEY environment variable
-            # Do NOT add 'api_key' field here - use environment variables for secrets!
-        },
-        "reporting": {
-            "formats": ["markdown", "json"],
-            "generate_claude_integration": True  # Generate .acv/ folder with Claude skills
-        },
-        "logging": {
-            "level": "INFO",
-            "format": "detailed"
-        }
-    }
-
-    # Write config file with helpful comments
-    console.print("\n[cyan]📝 Writing configuration...[/cyan]")
-
-    with open(config_path, "w") as f:
-        f.write("# API Contract Validator Configuration\n")
-        f.write("# Generated by: acv init\n")
-        f.write(f"# Spec: {spec_path}\n")
-        f.write(f"# API: {api_url}\n\n")
-
-        # Security notes for API headers
-        if headers:
-            f.write("# ⚠️  SECURITY NOTE - API Headers:\n")
-            f.write("#   - Replace placeholder values (YOUR_*) with actual credentials\n")
-            f.write("#   - Do NOT commit real secrets to version control\n")
-            f.write("#   - Consider using environment variables: ${ENV_VAR_NAME}\n")
-            f.write("#   - Add this file to .gitignore if it contains secrets\n\n")
-
-        # Security notes for AI API key
-        f.write("# 🔐 AI ANALYSIS API KEY:\n")
-        f.write("#   Set the Anthropic API key via environment variable:\n")
-        f.write("#     export ANTHROPIC_API_KEY='sk-ant-api03-...'\n")
-        f.write("#   or create a .env file:\n")
-        f.write("#     echo 'ANTHROPIC_API_KEY=sk-ant-...' >> .env\n")
-        f.write("#     echo '.env' >> .gitignore\n")
-        f.write("#   NEVER add 'api_key:' field to this config file!\n\n")
-
-        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-
-        # Add inline comments for headers section
-        if headers:
-            f.write("\n# Headers Configuration:\n")
-            f.write("# All headers in 'api.headers' are automatically included in every test request.\n")
-            f.write("# Common patterns:\n")
-            f.write("#   Authorization: Bearer ${AUTH_TOKEN}  (use env vars for secrets)\n")
-            f.write("#   Content-Type: application/json       (usually needed for POST/PUT)\n")
-            f.write("#   X-API-Key: ${API_KEY}                (for API key auth)\n")
-            f.write("#   X-Tenant-ID: ${TENANT_ID}            (for multi-tenant APIs)\n\n")
-
-    console.print(f"\n[green]✅ Created acv_config.yaml[/green]")
-
-    if headers:
-        console.print("\n[yellow]⚠️  IMPORTANT: Update placeholder header values![/yellow]")
-        console.print("[dim]Replace 'YOUR_*' values with actual credentials before running tests.[/dim]")
-
-    console.print("\n[bold]Configuration Summary:[/bold]")
-    console.print(f"  • Spec: {spec_path}")
-    console.print(f"  • API: {api_url}")
-    if headers:
-        console.print(f"  • Headers: {len(headers)} configured")
-    console.print(f"  • Reports: reports/acv")
-    console.print(f"  • Claude Integration: .acv/ folder")
-
-    console.print("\n[bold]Next steps:[/bold]")
-    console.print("  1. Review and customize acv_config.yaml")
-    if headers:
-        console.print("  2. [yellow]Replace placeholder header values (YOUR_*)[/yellow]")
-        console.print("  3. Ensure your OpenAPI spec exists")
-        console.print("  4. Start your API server")
-        console.print(f"  5. Run: [cyan]acv validate[/cyan]")
-    else:
-        console.print("  2. Ensure your OpenAPI spec exists")
-        console.print("  3. Start your API server")
-        console.print(f"  4. Run: [cyan]acv validate[/cyan]")
-
-    console.print("\n[dim]Tips:[/dim]")
-    console.print("[dim]  • Use 'acv validate --env dev' to test different environments[/dim]")
-    console.print("[dim]  • Add acv_config.yaml to .gitignore if it contains secrets[/dim]")
-    console.print("[dim]  • View generated Claude guidance in .acv/CLAUDE.md after validation[/dim]")
 
 
 @cli.command()

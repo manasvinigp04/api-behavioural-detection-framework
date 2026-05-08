@@ -15,6 +15,7 @@ from api_contract_validator.input.normalizer.models import (
     RequestBody,
     ResponseBody,
 )
+from api_contract_validator.input.normalizer.models import Parameter
 
 
 @pytest.mark.unit

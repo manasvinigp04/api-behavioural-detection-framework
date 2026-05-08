@@ -4,11 +4,11 @@ Drift Detection Models
 Data models for representing detected drift across multiple dimensions.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class DriftSeverity(str, Enum):
@@ -38,8 +38,7 @@ class ContractDriftIssue(BaseModel):
     severity: DriftSeverity = DriftSeverity.HIGH
     status_code: int
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class ValidationDriftIssue(BaseModel):
@@ -58,8 +57,7 @@ class ValidationDriftIssue(BaseModel):
     message: str
     severity: DriftSeverity = DriftSeverity.HIGH
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class BehavioralDriftIssue(BaseModel):
@@ -75,8 +73,7 @@ class BehavioralDriftIssue(BaseModel):
     evidence: Dict[str, Any]  # Supporting data showing the anomaly
     severity: DriftSeverity = DriftSeverity.MEDIUM
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class DriftSummary(BaseModel):
@@ -91,8 +88,7 @@ class DriftSummary(BaseModel):
     medium_count: int = 0
     low_count: int = 0
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class DriftReport(BaseModel):
@@ -101,7 +97,7 @@ class DriftReport(BaseModel):
     drift across multiple dimensions.
     """
 
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     api_url: str
     spec_source: str  # Path to OpenAPI spec or PRD
     spec_version: Optional[str] = None
@@ -119,8 +115,7 @@ class DriftReport(BaseModel):
     tests_passed: int = 0
     tests_failed: int = 0
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
     def has_critical_issues(self) -> bool:
         """Check if there are any critical issues."""
@@ -186,8 +181,7 @@ class DriftSnapshot(BaseModel):
     git_commit: Optional[str] = None
     git_branch: Optional[str] = None
 
-    class Config:
-        frozen = False
+    model_config = ConfigDict(frozen=False)
 
 
 class ProgressiveDriftTrend(BaseModel):
@@ -199,5 +193,5 @@ class ProgressiveDriftTrend(BaseModel):
     trend_direction: str = "stable"  # "improving", "degrading", "stable"
     change_percentage: float = 0.0
 
-    class Config:
-        frozen = False
+    
+    model_config = ConfigDict(frozen=False)

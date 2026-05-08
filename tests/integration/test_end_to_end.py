@@ -3,6 +3,7 @@ End-to-end integration tests.
 """
 
 import pytest
+import json
 
 from api_contract_validator.analysis.drift.detector import DriftDetector
 from api_contract_validator.config.models import DriftDetectionConfig, ExecutionConfig, TestGenerationConfig
