@@ -12,10 +12,11 @@ from api_contract_validator.input.normalizer.models import (
     FieldDefinition,
     FieldType,
     HTTPMethod,
+    Parameter,
     RequestBody,
     ResponseBody,
+    TestCaseType,
 )
-from api_contract_validator.input.normalizer.models import Parameter
 
 
 @pytest.mark.unit

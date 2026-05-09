@@ -225,13 +225,15 @@ class TestTestExecutor:
         # Use short timeout to trigger retry
         config = ExecutionConfig(timeout_seconds=1, retry_attempts=2, retry_delay_seconds=0.1)
 
-        # First request times out, second succeeds
+        # First request times out (via sleep), second succeeds
         call_count = {"count": 0}
 
         def handler(request):
+            import time
             call_count["count"] += 1
             if call_count["count"] == 1:
-                raise Exception("Timeout")
+                # Sleep longer than timeout to simulate timeout
+                time.sleep(2)
             return httpx.Response(200, json={"id": 1})
 
         httpserver.expect_request("/users/1").respond_with_handler(handler)
@@ -239,7 +241,7 @@ class TestTestExecutor:
         executor = TestExecutor(httpserver.url_for("/"), config)
         results = executor.execute_tests_sync([valid_test_case])
 
-        # Should eventually succeed after retry
+        # Should eventually succeed after retry or fail gracefully
         result = results[0]
         # At minimum, retry was attempted
         assert result is not None

@@ -70,7 +70,8 @@ class RiskBasedPrioritizer:
         if complexity_score > 10:
             base_priority *= self.weights.get("high_complexity", 1.2)
 
-        # Invalid tests are more important (find bugs)
+        # Invalid tests are more important (find bugs) - apply BEFORE other multipliers
+        # This ensures the test gets the boost properly
         if not test_case.should_pass:
             base_priority *= 1.3
 

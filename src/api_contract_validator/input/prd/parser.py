@@ -358,7 +358,7 @@ class PRDParser:
         return responses
 
     def _extract_fields(self, context: str, is_response: bool = False) -> Dict[str, FieldDefinition]:
-        """Extract field definitions from context."""
+        """Extract field definitions from context with confidence scoring."""
         fields = {}
 
         # Pattern: "field_name: type (description)"
@@ -379,18 +379,211 @@ class PRDParser:
                 # Map type string to FieldType
                 field_type = self.field_types_map.get(field_type_str, FieldType.STRING)
 
-                # Determine if required (look for "required" nearby)
-                is_required = "required" in context.lower() and field_name in context
+                # Extract constraints with confidence scoring
+                constraint, constraint_confidence = self._extract_field_constraints(
+                    field_name, context
+                )
+
+                # Calculate field-level confidence
+                field_confidence = self._calculate_field_confidence(
+                    field_name,
+                    field_type_str,
+                    description,
+                    constraint,
+                    constraint_confidence,
+                    context
+                )
 
                 fields[field_name] = FieldDefinition(
                     name=field_name,
                     type=field_type,
                     description=description,
-                    constraints=FieldConstraint(required=is_required),
-                    confidence=0.5,
+                    constraints=constraint,
+                    confidence=field_confidence,
                 )
 
         return fields
+
+    def _extract_field_constraints(
+        self, field_name: str, context: str
+    ) -> Tuple[FieldConstraint, float]:
+        """Extract field constraints with confidence scores."""
+        constraint = FieldConstraint()
+        confidence_scores = []
+
+        # Check for "required" keyword
+        required_patterns = [
+            rf"{field_name}\s+(?:is|must be|should be)?\s*required",
+            rf"required\s+(?:field|parameter)[s]?.*{field_name}",
+            rf"{field_name}.*\(required\)",
+        ]
+
+        required_confidence = 0.0
+        for pattern in required_patterns:
+            if re.search(pattern, context, re.IGNORECASE):
+                constraint.required = True
+                required_confidence = 0.9  # High confidence for explicit mention
+                break
+
+        if not constraint.required:
+            # Check for "optional" keyword
+            optional_patterns = [
+                rf"{field_name}.*optional",
+                rf"optional.*{field_name}",
+            ]
+            for pattern in optional_patterns:
+                if re.search(pattern, context, re.IGNORECASE):
+                    constraint.required = False
+                    required_confidence = 0.8
+                    break
+
+        if required_confidence > 0:
+            confidence_scores.append(required_confidence)
+
+        # Extract numeric constraints
+        min_pattern = rf"{field_name}.*(?:min|minimum|at least|greater than)\s+(\d+)"
+        max_pattern = rf"{field_name}.*(?:max|maximum|at most|less than)\s+(\d+)"
+
+        min_match = re.search(min_pattern, context, re.IGNORECASE)
+        if min_match:
+            constraint.minimum = int(min_match.group(1))
+            confidence_scores.append(0.85)
+
+        max_match = re.search(max_pattern, context, re.IGNORECASE)
+        if max_match:
+            constraint.maximum = int(max_match.group(1))
+            confidence_scores.append(0.85)
+
+        # Extract length constraints
+        minlen_pattern = rf"{field_name}.*(?:min|minimum)\s+length\s+(\d+)"
+        maxlen_pattern = rf"{field_name}.*(?:max|maximum)\s+length\s+(\d+)"
+
+        minlen_match = re.search(minlen_pattern, context, re.IGNORECASE)
+        if minlen_match:
+            constraint.min_length = int(minlen_match.group(1))
+            confidence_scores.append(0.85)
+
+        maxlen_match = re.search(maxlen_pattern, context, re.IGNORECASE)
+        if maxlen_match:
+            constraint.max_length = int(maxlen_match.group(1))
+            confidence_scores.append(0.85)
+
+        # Extract format constraints
+        format_patterns = {
+            "email": [rf"{field_name}.*email", r"email.*{field_name}"],
+            "uri": [rf"{field_name}.*(?:url|uri)", r"(?:url|uri).*{field_name}"],
+            "uuid": [rf"{field_name}.*uuid", r"uuid.*{field_name}"],
+            "date": [rf"{field_name}.*date", r"date.*{field_name}"],
+            "date-time": [rf"{field_name}.*(?:datetime|timestamp)", r"(?:datetime|timestamp).*{field_name}"],
+        }
+
+        for format_name, patterns in format_patterns.items():
+            for pattern in patterns:
+                if re.search(pattern, context, re.IGNORECASE):
+                    constraint.format = format_name
+                    confidence_scores.append(0.80)
+                    break
+
+        # Calculate average confidence
+        overall_confidence = sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0.5
+
+        return constraint, overall_confidence
+
+    def _calculate_field_confidence(
+        self,
+        field_name: str,
+        field_type: str,
+        description: Optional[str],
+        constraint: FieldConstraint,
+        constraint_confidence: float,
+        context: str
+    ) -> float:
+        """
+        Calculate confidence score for extracted field.
+
+        Factors:
+        1. Linguistic certainty (modal verbs: must, should, may)
+        2. Explicit type definition
+        3. Constraint extraction quality
+        4. Description presence
+        5. Context specificity
+        """
+        confidence_factors = []
+
+        # Factor 1: Linguistic certainty
+        certainty_score = self._assess_linguistic_certainty(field_name, context)
+        confidence_factors.append(certainty_score)
+
+        # Factor 2: Explicit type definition
+        if field_type in self.field_types_map:
+            confidence_factors.append(0.8)  # Known type
+        else:
+            confidence_factors.append(0.5)  # Inferred type
+
+        # Factor 3: Constraint quality
+        if constraint_confidence > 0:
+            confidence_factors.append(constraint_confidence)
+
+        # Factor 4: Description presence
+        if description and len(description) > 10:
+            confidence_factors.append(0.7)
+        elif description:
+            confidence_factors.append(0.5)
+
+        # Factor 5: Context specificity (how many times field mentioned)
+        mention_count = context.lower().count(field_name.lower())
+        if mention_count >= 3:
+            confidence_factors.append(0.8)
+        elif mention_count >= 2:
+            confidence_factors.append(0.7)
+        else:
+            confidence_factors.append(0.6)
+
+        # Calculate weighted average (emphasize certainty and constraint quality)
+        if len(confidence_factors) >= 3:
+            weights = [0.3, 0.2, 0.3, 0.1, 0.1][:len(confidence_factors)]
+            weighted_confidence = sum(
+                f * w for f, w in zip(confidence_factors, weights)
+            ) / sum(weights)
+        else:
+            weighted_confidence = sum(confidence_factors) / len(confidence_factors)
+
+        # Cap PRD confidence at 0.9 (never 100% certain from natural language)
+        return min(weighted_confidence, 0.9)
+
+    def _assess_linguistic_certainty(self, field_name: str, context: str) -> float:
+        """
+        Assess linguistic certainty from modal verbs and hedge words.
+
+        High certainty (0.9): "must", "required", "will"
+        Medium certainty (0.7): "should", "expected"
+        Low certainty (0.5): "may", "might", "could", "optional"
+        """
+        # Find sentences mentioning the field
+        sentences = [s for s in context.split(".") if field_name in s]
+
+        if not sentences:
+            return 0.5  # Default uncertainty
+
+        sentence = sentences[0].lower()
+
+        # High certainty indicators
+        high_certainty_words = ["must", "required", "will", "shall", "always"]
+        if any(word in sentence for word in high_certainty_words):
+            return 0.9
+
+        # Medium certainty indicators
+        medium_certainty_words = ["should", "expected", "typically", "usually"]
+        if any(word in sentence for word in medium_certainty_words):
+            return 0.7
+
+        # Low certainty indicators
+        low_certainty_words = ["may", "might", "could", "optional", "possibly", "potentially"]
+        if any(word in sentence for word in low_certainty_words):
+            return 0.5
+
+        # No modal verbs found - moderate confidence
+        return 0.6
 
     def _calculate_confidence(self, endpoints: List[Endpoint]) -> float:
         """Calculate overall confidence score for the extracted spec."""
